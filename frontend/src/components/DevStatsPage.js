@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { usePageProps } from '../Layout';
 
 export default function DevStatsPage() {
-  const { setPageTitle, jcmpStats, dcState } = usePageProps();
+  const { setPageTitle, jcmpStats, dcState, jcmpStatus, wsState, rtcOnly, pendingPerf, wsUrl } = usePageProps();
 
   useEffect(() => { setPageTitle('Dev Stats'); }, [setPageTitle]);
 
@@ -15,10 +15,18 @@ export default function DevStatsPage() {
       <h2>JCMP Runtime Stats</h2>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
         <div className="card">
+          <h3>Client</h3>
+          <div>Status: {jcmpStatus}</div>
+          <div>WS: {wsState} ({wsUrl})</div>
+          <div>DC: {dcState}</div>
+          <div>RTC only: {String(rtcOnly)}</div>
+          <div>Pending perf queue: {pendingPerf}</div>
+        </div>
+        <div className="card">
           <h3>Server</h3>
           <div>Server Time: {jcmpStats?.serverTime ?? '-'}</div>
           <div>Playback Queue Len: {jcmpStats?.queueLength ?? '-'}</div>
-          <div>DC State: {dcState}</div>
+          <div>Lane counters: RTC={jcmpStats?.laneCounters?.rtcPerf ?? 0}, WS={jcmpStats?.laneCounters?.wsImmediate ?? 0}</div>
         </div>
         {clients.map(c => (
           <div key={c.id} className="card">

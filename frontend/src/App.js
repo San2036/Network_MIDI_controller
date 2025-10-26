@@ -11,7 +11,7 @@ import DrumPadsPage from './components/DrumPadsPage';
 import DevStatsPage from './components/DevStatsPage';
 
 function App() {
-  const { status, dcState, stats, sendMIDI } = useJCMP();
+  const { status, dcState, stats, sendMIDI, wsState, pendingPerf } = useJCMP();
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [pageTitle, setPageTitle] = useState('Piano'); // For the header
@@ -63,6 +63,11 @@ function App() {
     setPageTitle,
     jcmpStats: stats,
     dcState,
+    jcmpStatus: status,
+    wsState,
+    rtcOnly: true,
+    pendingPerf,
+    wsUrl: `ws://${window.location.hostname}:5000`,
   };
 
   return (

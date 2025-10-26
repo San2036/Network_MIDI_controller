@@ -14,6 +14,9 @@ export default function useJCMP() {
   const pcRef = useRef(null);
   const dcRef = useRef(null);
 
+  const [wsState, setWsState] = useState('connecting'); // connecting | open | closed | error
+  const [pendingPerf, setPendingPerf] = useState(0);
+
   const wsUrl = useMemo(() => `ws://${window.location.hostname}:5000`, []);
 
   // Signaling via WebSocket
@@ -53,6 +56,7 @@ export default function useJCMP() {
         while (q.length && dc.readyState === 'open') {
           dc.send(JSON.stringify(q.shift()));
         }
+        setPendingPerf(q.length);
       } catch {}
     };
     dc.onclose = () => { setDcState('closed'); setStatus(wsRef.current?.readyState === WebSocket.OPEN ? 'ws' : 'disconnected'); };
@@ -73,9 +77,11 @@ export default function useJCMP() {
     const openWS = () => {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      setWsState('connecting');
 
       ws.onopen = () => {
-        setStatus(prev => (dcRef.current && dcRef.current.readyState === 'open') ? 'rtc' : 'ws');
+        setWsState('open');
+        setStatus((dcRef.current && dcRef.current.readyState === 'open') ? 'rtc' : 'ws');
         // Hello + kick off WebRTC handshake
         safeSend(ws, { type: 'client-hello' });
         startWebRTC();
@@ -106,12 +112,14 @@ export default function useJCMP() {
       };
 
       ws.onclose = () => {
+        setWsState('closed');
         setStatus('disconnected');
         cleanupRTC();
         reconnectTimer = setTimeout(openWS, 2000);
       };
 
       ws.onerror = () => {
+        setWsState('error');
         setStatus('disconnected');
       };
     };
@@ -136,8 +144,12 @@ export default function useJCMP() {
       }
       if (rtcOnly) {
         // queue until RTC opens; prevents WS fallback
-        if (pendingPerfRef.current.length < 256) pendingPerfRef.current.push(packet);
-        else console.warn('JCMP: drop perf event (queue full, rtcOnly)');
+        if (pendingPerfRef.current.length < 256) {
+          pendingPerfRef.current.push(packet);
+          setPendingPerf(pendingPerfRef.current.length);
+        } else {
+          console.warn('JCMP: drop perf event (queue full, rtcOnly)');
+        }
         return;
       }
       // fallback to WS immediate if allowed
@@ -149,5 +161,5 @@ export default function useJCMP() {
     safeSend(wsRef.current, msg);
   }
 
-  return { status, dcState, stats, sendMIDI };
+  return { status, dcState, stats, sendMIDI, wsState, pendingPerf, rtcOnly, wsUrl };
 }
