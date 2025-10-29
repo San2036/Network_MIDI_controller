@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { usePageProps } from '../Layout';
 
 export default function DevStatsPage() {
-  const { setPageTitle, jcmpStats, dcState, jcmpStatus, wsState, rtcOnly, pendingPerf, wsUrl } = usePageProps();
+  const { setPageTitle, jcmpStats, dcState, jcmpStatus, wsState, rtcOnly, pendingPerf, wsUrl, compareMode } = usePageProps();
 
   useEffect(() => { setPageTitle('Dev Stats'); }, [setPageTitle]);
 
@@ -21,6 +21,7 @@ export default function DevStatsPage() {
           <div>DC: {dcState}</div>
           <div>RTC only: {String(rtcOnly)}</div>
           <div>Pending perf queue: {pendingPerf}</div>
+          <div>Compare mode: {compareMode ? 'TCP (WS immediate)' : 'JCMP (RTC + buffer)'}</div>
         </div>
         <div className="card">
           <h3>Server</h3>
@@ -36,6 +37,16 @@ export default function DevStatsPage() {
             <div>RTT p95: {c.rttP95} ms</div>
             <div>RTT avg: {c.rttAvg} ms</div>
             <div>Last seen: {c.lastSeen ? new Date(c.lastSeen).toLocaleTimeString() : '-'}</div>
+            {Array.isArray(c.latencyHistory) && c.latencyHistory.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>Recent RTTs (last {Math.min(20, c.latencyHistory.length)}):</div>
+                <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 40 }}>
+                  {c.latencyHistory.slice(-20).map((v, i) => (
+                    <div key={i} title={`${v} ms`} style={{ width: 6, height: Math.max(2, Math.min(40, v / 3)), background: '#61b0ff' }} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

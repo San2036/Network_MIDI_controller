@@ -11,10 +11,11 @@ import DrumPadsPage from './components/DrumPadsPage';
 import DevStatsPage from './components/DevStatsPage';
 
 function App() {
-  const { status, dcState, stats, sendMIDI, wsState, pendingPerf } = useJCMP();
+  const { status, dcState, stats, sendMIDI, sendWSImmediate, wsState, pendingPerf, midiAvailable } = useJCMP();
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [pageTitle, setPageTitle] = useState('Piano'); // For the header
+  const [compareMode, setCompareMode] = useState(() => localStorage.getItem('compareMode') === '1');
 
   // --- Theme Logic ---
   useEffect(() => {
@@ -26,32 +27,44 @@ function App() {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
+  const toggleCompareMode = () => {
+    setCompareMode(prev => {
+      const next = !prev; localStorage.setItem('compareMode', next ? '1' : '0'); return next;
+    });
+  };
+
   // --- MIDI Handlers ---
   const playNote = (noteNumber, isPressed) => {
     if (isPressed && !pressedKeys.has(noteNumber)) {
       setPressedKeys(new Set([...pressedKeys, noteNumber]));
-      sendMIDI({ type: 'noteOn', channel: 1, note: noteNumber, velocity: 100 });
+      const msg = { type: 'noteOn', channel: 1, note: noteNumber, velocity: 100 };
+      if (compareMode) { sendWSImmediate({ ...msg, timestamp: Date.now() }); } else { sendMIDI(msg); }
     } else if (!isPressed && pressedKeys.has(noteNumber)) {
       const updated = new Set(pressedKeys);
       updated.delete(noteNumber);
       setPressedKeys(updated);
-      sendMIDI({ type: 'noteOff', channel: 1, note: noteNumber });
+      const msg = { type: 'noteOff', channel: 1, note: noteNumber };
+      if (compareMode) { sendWSImmediate({ ...msg, timestamp: Date.now() }); } else { sendMIDI(msg); }
     }
   };
 
   const playDrum = (noteNumber) => {
-    sendMIDI({ type: 'noteOn', channel: 10, note: noteNumber, velocity: 127 });
+    const onMsg = { type: 'noteOn', channel: 10, note: noteNumber, velocity: 127 };
+    if (compareMode) { sendWSImmediate({ ...onMsg, timestamp: Date.now() }); } else { sendMIDI(onMsg); }
     setTimeout(() => {
-      sendMIDI({ type: 'noteOff', channel: 10, note: noteNumber });
+      const offMsg = { type: 'noteOff', channel: 10, note: noteNumber };
+      if (compareMode) { sendWSImmediate({ ...offMsg, timestamp: Date.now() }); } else { sendMIDI(offMsg); }
     }, 100);
   };
 
   const handleControlChange = (control, value) => {
-    sendMIDI({ type: 'controlChange', channel: 1, control, value: parseInt(value) });
+    const msg = { type: 'controlChange', channel: 1, control, value: parseInt(value) };
+    if (compareMode) { sendWSImmediate({ ...msg, timestamp: Date.now() }); } else { sendMIDI(msg); }
   };
 
   const handleTransport = (action) => {
-    sendMIDI({ type: 'transport', action: action });
+    // Transport goes over signaling WS regardless of compare mode
+    sendWSImmediate({ type: 'transport', action: action });
   };
 
   // --- Props to pass down ---
@@ -68,6 +81,8 @@ function App() {
     rtcOnly: true,
     pendingPerf,
     wsUrl: `ws://${window.location.hostname}:5000`,
+    compareMode,
+    midiAvailable,
   };
 
   return (
@@ -83,6 +98,9 @@ function App() {
             pageTitle={pageTitle}
             onControlChange={handleControlChange}
             onTransport={handleTransport}
+            compareMode={compareMode}
+            onToggleCompare={toggleCompareMode}
+            midiAvailable={midiAvailable}
             context={contextProps} // Pass all page-specific props to the Outlet
           />
         }

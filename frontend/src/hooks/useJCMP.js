@@ -5,6 +5,7 @@ export default function useJCMP() {
   const [status, setStatus] = useState('disconnected'); // disconnected | ws | rtc
   const [dcState, setDcState] = useState('closed');
   const [stats, setStats] = useState(null);
+  const [midiAvailable, setMidiAvailable] = useState(false);
 
   // Enforce WebRTC as primary lane
   const rtcOnly = true; // set to false to allow WS fallback for performance
@@ -91,7 +92,7 @@ export default function useJCMP() {
         let msg; try { msg = JSON.parse(ev.data); } catch { return; }
         switch (msg.type) {
           case 'server-welcome':
-            // no-op; id available at msg.id
+            setMidiAvailable(msg.midiAvailable || false);
             break;
           case 'webrtc-answer':
             if (pcRef.current && msg.answer) {
@@ -161,5 +162,10 @@ export default function useJCMP() {
     safeSend(wsRef.current, msg);
   }
 
-  return { status, dcState, stats, sendMIDI, wsState, pendingPerf, rtcOnly, wsUrl };
+  // Public WS immediate send (bypasses RTC for comparison/testing)
+  function sendWSImmediate(msg) {
+    safeSend(wsRef.current, msg);
+  }
+
+  return { status, dcState, stats, sendMIDI, sendWSImmediate, wsState, pendingPerf, rtcOnly, wsUrl, midiAvailable };
 }

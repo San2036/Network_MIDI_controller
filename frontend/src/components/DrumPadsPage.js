@@ -15,7 +15,7 @@ function DrumPadsPage() {
   
   return (
     <div className="section">
-      <h2>🥁 Drum Pads</h2>
+      <h2>Drum Pads</h2>
       <DrumPads onPlayDrum={playDrum} />
     </div>
   );

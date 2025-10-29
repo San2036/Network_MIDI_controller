@@ -88,6 +88,7 @@ const server = app.listen(port, '0.0.0.0', () => {
 const wss = new WebSocket.Server({ server });
 
 // ===== JCMP State =====
+const JCMP_DEBUG = process.env.JCMP_DEBUG === '1';
 let nextClientId = 1;
 const clients = new Map(); // id -> { id, ws, pc, dc, latencyHistory: [], bufferSizeMs, lastSeen }
 const playbackQueue = []; // Array of { playAt, type, data }
@@ -95,6 +96,7 @@ const LATE_DROP_MS = 50; // drop if we're over this late
 const SAFETY_MARGIN_MS = 15;
 // Counters to distinguish lanes used
 const counters = { wsImmediate: 0, rtcPerf: 0 };
+let lastPlaybackDispatchAt = null; // for inter-playback interval metrics
 
 function percentile(arr, p) {
     if (!arr.length) return 0;
@@ -114,7 +116,18 @@ setInterval(() => {
     const now = Date.now();
     while (playbackQueue.length && playbackQueue[0].playAt <= now) {
         const evt = playbackQueue.shift();
-        if (now - evt.playAt > LATE_DROP_MS) continue; // late drop
+        const playbackError = now - evt.playAt;
+        if (playbackError > LATE_DROP_MS) continue; // late drop
+
+        if (JCMP_DEBUG) {
+            const interval = lastPlaybackDispatchAt != null ? (now - lastPlaybackDispatchAt) : null;
+            if (interval != null) {
+                console.log(`JCMP Debug: PlaybackError=${playbackError}ms, InterPlayback=${interval}ms`);
+            } else {
+                console.log(`JCMP Debug: PlaybackError=${playbackError}ms`);
+            }
+            lastPlaybackDispatchAt = now;
+        }
         switch (evt.type) {
             case 'noteOn':
                 sendNoteOn(evt.channel || 1, evt.note, evt.velocity || 100);
@@ -231,6 +244,10 @@ function handlePerformancePacket(c, msg) {
     const p95 = percentile(c.latencyHistory, 95);
     c.bufferSizeMs = Math.max(10, Math.min(300, Math.round(p95 + SAFETY_MARGIN_MS)));
 
+    if (JCMP_DEBUG) {
+        console.log(`JCMP Debug: RTC latency=${latency}ms, bufferSizeMs=${c.bufferSizeMs}`);
+    }
+
     const playAt = ts + c.bufferSizeMs;
     switch (obj.type) {
         case 'noteOn':
@@ -341,22 +358,46 @@ wss.on('connection', (ws, req) => {
             // Legacy immediate MIDI over WS (kept for compatibility)
             case 'noteOn':
                 counters.wsImmediate++;
-                console.log('🎯 WS lane: noteOn');
+                if (JCMP_DEBUG) {
+                    const arrival = Date.now();
+                    const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
+                    console.log(wsLatency != null ? `🎯 WS lane: noteOn (latency=${wsLatency}ms)` : '🎯 WS lane: noteOn');
+                } else {
+                    console.log('🎯 WS lane: noteOn');
+                }
                 sendNoteOn(message.channel || 1, message.note, message.velocity || 127);
                 break;
             case 'noteOff':
                 counters.wsImmediate++;
-                console.log('🎯 WS lane: noteOff');
+                if (JCMP_DEBUG) {
+                    const arrival = Date.now();
+                    const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
+                    console.log(wsLatency != null ? `🎯 WS lane: noteOff (latency=${wsLatency}ms)` : '🎯 WS lane: noteOff');
+                } else {
+                    console.log('🎯 WS lane: noteOff');
+                }
                 sendNoteOff(message.channel || 1, message.note);
                 break;
             case 'controlChange':
                 counters.wsImmediate++;
-                console.log('🎯 WS lane: controlChange');
+                if (JCMP_DEBUG) {
+                    const arrival = Date.now();
+                    const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
+                    console.log(wsLatency != null ? `🎯 WS lane: controlChange (latency=${wsLatency}ms)` : '🎯 WS lane: controlChange');
+                } else {
+                    console.log('🎯 WS lane: controlChange');
+                }
                 sendControlChange(message.channel || 1, message.control, message.value);
                 break;
             case 'programChange':
                 counters.wsImmediate++;
-                console.log('🎯 WS lane: programChange');
+                if (JCMP_DEBUG) {
+                    const arrival = Date.now();
+                    const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
+                    console.log(wsLatency != null ? `🎯 WS lane: programChange (latency=${wsLatency}ms)` : '🎯 WS lane: programChange');
+                } else {
+                    console.log('🎯 WS lane: programChange');
+                }
                 sendProgramChange(message.channel || 1, message.program);
                 break;
             case 'transport':

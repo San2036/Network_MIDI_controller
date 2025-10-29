@@ -15,7 +15,7 @@ function PianoPage() {
 
   return (
     <div className="section">
-      <h2>🎹 Piano Keyboard</h2>
+      <h2>Piano Keyboard</h2>
       <Piano 
         pressedKeys={pressedKeys} 
         onPlayNote={playNote} 

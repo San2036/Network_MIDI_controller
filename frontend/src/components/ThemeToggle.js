@@ -1,5 +1,6 @@
 import React from 'react';
 import './ThemeToggle.css';
+import { SunIcon, MoonIcon } from './icons';
 
 function ThemeToggle({ theme, onToggle }) {
   return (
@@ -8,7 +9,7 @@ function ThemeToggle({ theme, onToggle }) {
       onClick={onToggle} 
       title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
     >
-      {theme === 'light' ? '🌙' : '☀️'}
+      {theme === 'light' ? <MoonIcon /> : <SunIcon />}
     </button>
   );
 }
