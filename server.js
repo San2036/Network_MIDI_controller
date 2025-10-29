@@ -461,22 +461,76 @@ function handleTransportControl(action) {
             case 'play':
                 midiOutput.send('start');
                 console.log('▶️  MIDI Start sent');
+                sendMMC('play');
+                sendTransportNote('play');
                 break;
             case 'stop':
                 midiOutput.send('stop');
                 console.log('⏹️  MIDI Stop sent');
+                sendMMC('stop');
+                sendTransportNote('stop');
                 break;
             case 'pause':
                 midiOutput.send('continue');
                 console.log('⏸️  MIDI Continue sent');
+                sendMMC('pause');
+                sendTransportNote('pause');
                 break;
             case 'record':
                 sendControlChange(1, 119, 127); // Record CC
                 console.log('⏺️  Record command sent (CC 119)');
+                sendMMC('record');
+                sendTransportNote('record');
                 break;
         }
     } catch (error) {
         console.error('❌ Error sending transport command:', error.message);
+    }
+}
+
+// Send MMC (MIDI Machine Control) SysEx for broader DAW transport compatibility
+function sendMMC(action) {
+    if (!midiOutput) return;
+    // MMC: F0 7F 7F 06 <cmd> F7 (7F = all devices)
+    const CMD = {
+        stop: 0x01,
+        play: 0x02,
+        // deferred play could be 0x03; use pause 0x09
+        pause: 0x09,
+        // record strobe starts recording
+        record: 0x06,
+    };
+    const cmd = CMD[action];
+    if (cmd == null) return;
+    try {
+        // easymidi expects raw bytes array for sysex
+        midiOutput.send('sysex', [0xF0, 0x7F, 0x7F, 0x06, cmd, 0xF7]);
+        console.log(`🛰️  MMC sent: ${action} (0x${cmd.toString(16)})`);
+    } catch (e) {
+        console.log('⚠️  MMC send failed:', e.message);
+    }
+}
+
+// Also emit dedicated note triggers for easy MIDI Learn in DAWs
+function sendTransportNote(action) {
+    if (!midiOutput) return;
+    const NOTE = {
+        play: 24,   // C1
+        stop: 25,
+        pause: 26,
+        record: 27,
+    };
+    const note = NOTE[action];
+    if (note == null) return;
+    const channel = 16; // use channel 16 for transport mapping
+    try {
+        midiOutput.send('noteon', { channel: channel - 1, note, velocity: 100 });
+        setTimeout(() => {
+            try { midiOutput.send('noteoff', { channel: channel - 1, note, velocity: 0 }); } catch {}
+        }, 50);
+        console.log(`🎚️  Transport note sent: ${action} → Ch${channel} Note${note}`);
+    } catch (e) {
+        console.log('⚠️  Transport note send failed:', e.message);
     }
 }
 
