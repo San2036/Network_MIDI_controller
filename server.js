@@ -90,8 +90,8 @@ const server = app.listen(port, '0.0.0.0', () => {
 // WebSocket server
 const wss = new WebSocket.Server({ server });
 
-// ===== JCMP State =====
-const JCMP_DEBUG = process.env.JCMP_DEBUG === '1';
+// ===== RPSV State =====
+const RPSV_DEBUG = process.env.RPSV_DEBUG === '1';
 let nextClientId = 1;
 const clients = new Map(); // id -> { id, ws, pc, dc, latencyHistory: [], bufferSizeMs, lastSeen }
 const playbackQueue = []; // Array of { playAt, type, data }
@@ -100,6 +100,12 @@ const SAFETY_MARGIN_MS = 15;
 // Counters to distinguish lanes used
 const counters = { wsImmediate: 0, rtcPerf: 0 };
 let lastPlaybackDispatchAt = null; // for inter-playback interval metrics
+
+function logMetric(obj) {
+    try {
+        console.log('METRIC ' + JSON.stringify({ ts: Date.now(), ...obj }));
+    } catch {}
+}
 
 function percentile(arr, p) {
     if (!arr.length) return 0;
@@ -122,12 +128,14 @@ setInterval(() => {
         const playbackError = now - evt.playAt;
         if (playbackError > LATE_DROP_MS) continue; // late drop
 
-        if (JCMP_DEBUG) {
+        if (RPSV_DEBUG) {
             const interval = lastPlaybackDispatchAt != null ? (now - lastPlaybackDispatchAt) : null;
             if (interval != null) {
-                console.log(`JCMP Debug: PlaybackError=${playbackError}ms, InterPlayback=${interval}ms`);
+                console.log(`RPSV Debug: PlaybackError=${playbackError}ms, InterPlayback=${interval}ms`);
+                logMetric({ kind: 'rpsv_playback', playbackErrorMs: playbackError, interPlaybackMs: interval });
             } else {
-                console.log(`JCMP Debug: PlaybackError=${playbackError}ms`);
+                console.log(`RPSV Debug: PlaybackError=${playbackError}ms`);
+                logMetric({ kind: 'rpsv_playback', playbackErrorMs: playbackError });
             }
             lastPlaybackDispatchAt = now;
         }
@@ -176,7 +184,7 @@ setInterval(() => {
 
 // Log usage summary every 5s and reset counters
 setInterval(() => {
-    console.log(`JCMP lanes (last 5s): RTC perf msgs=${counters.rtcPerf}, WS immediate=${counters.wsImmediate}, clients=${clients.size}, queue=${playbackQueue.length}`);
+    console.log(`RPSV lanes (last 5s): RTC perf msgs=${counters.rtcPerf}, WS immediate=${counters.wsImmediate}, clients=${clients.size}, queue=${playbackQueue.length}`);
     counters.wsImmediate = 0;
     counters.rtcPerf = 0;
 }, 5000);
@@ -217,10 +225,10 @@ function setupPeerForClient(c, offer) {
         const dc = evt.channel;
         c.dc = dc;
         dc.onopen = () => {
-            console.log(`🔌 JCMP DataChannel OPEN (client ${c.id}) — using WebRTC lane`);
+            console.log(`🔌 RPSV DataChannel OPEN (client ${c.id}) — using WebRTC lane`);
         };
         dc.onclose = () => {
-            console.log(`🔌 JCMP DataChannel CLOSE (client ${c.id}) — fallback to WebSocket lane`);
+            console.log(`🔌 RPSV DataChannel CLOSE (client ${c.id}) — fallback to WebSocket lane`);
         };
         dc.onmessage = (msg) => handlePerformancePacket(c, msg);
     };
@@ -247,8 +255,9 @@ function handlePerformancePacket(c, msg) {
     const p95 = percentile(c.latencyHistory, 95);
     c.bufferSizeMs = Math.max(10, Math.min(300, Math.round(p95 + SAFETY_MARGIN_MS)));
 
-    if (JCMP_DEBUG) {
-        console.log(`JCMP Debug: RTC latency=${latency}ms, bufferSizeMs=${c.bufferSizeMs}`);
+    if (RPSV_DEBUG) {
+        console.log(`RPSV Debug: RTC latency=${latency}ms, bufferSizeMs=${c.bufferSizeMs}`);
+        logMetric({ kind: 'rpsv_rtc', rttMs: latency, bufferSizeMs: c.bufferSizeMs, clientId: c.id });
     }
 
     const playAt = ts + c.bufferSizeMs;
@@ -361,10 +370,11 @@ wss.on('connection', (ws, req) => {
             // Legacy immediate MIDI over WS (kept for compatibility)
             case 'noteOn':
                 counters.wsImmediate++;
-                if (JCMP_DEBUG) {
+                if (RPSV_DEBUG) {
                     const arrival = Date.now();
                     const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
                     console.log(wsLatency != null ? `🎯 WS lane: noteOn (latency=${wsLatency}ms)` : '🎯 WS lane: noteOn');
+                    if (wsLatency != null) logMetric({ kind: 'tcp_ws', action: 'noteOn', latencyMs: wsLatency });
                 } else {
                     console.log('🎯 WS lane: noteOn');
                 }
@@ -372,10 +382,11 @@ wss.on('connection', (ws, req) => {
                 break;
             case 'noteOff':
                 counters.wsImmediate++;
-                if (JCMP_DEBUG) {
+                if (RPSV_DEBUG) {
                     const arrival = Date.now();
                     const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
                     console.log(wsLatency != null ? `🎯 WS lane: noteOff (latency=${wsLatency}ms)` : '🎯 WS lane: noteOff');
+                    if (wsLatency != null) logMetric({ kind: 'tcp_ws', action: 'noteOff', latencyMs: wsLatency });
                 } else {
                     console.log('🎯 WS lane: noteOff');
                 }
@@ -383,10 +394,11 @@ wss.on('connection', (ws, req) => {
                 break;
             case 'controlChange':
                 counters.wsImmediate++;
-                if (JCMP_DEBUG) {
+                if (RPSV_DEBUG) {
                     const arrival = Date.now();
                     const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
                     console.log(wsLatency != null ? `🎯 WS lane: controlChange (latency=${wsLatency}ms)` : '🎯 WS lane: controlChange');
+                    if (wsLatency != null) logMetric({ kind: 'tcp_ws', action: 'controlChange', latencyMs: wsLatency });
                 } else {
                     console.log('🎯 WS lane: controlChange');
                 }
@@ -394,10 +406,11 @@ wss.on('connection', (ws, req) => {
                 break;
             case 'programChange':
                 counters.wsImmediate++;
-                if (JCMP_DEBUG) {
+                if (RPSV_DEBUG) {
                     const arrival = Date.now();
                     const wsLatency = typeof message.timestamp === 'number' ? Math.max(0, arrival - message.timestamp) : null;
                     console.log(wsLatency != null ? `🎯 WS lane: programChange (latency=${wsLatency}ms)` : '🎯 WS lane: programChange');
+                    if (wsLatency != null) logMetric({ kind: 'tcp_ws', action: 'programChange', latencyMs: wsLatency });
                 } else {
                     console.log('🎯 WS lane: programChange');
                 }

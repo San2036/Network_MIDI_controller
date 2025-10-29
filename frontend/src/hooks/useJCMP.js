@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
-// JCMP client hook: uses WebSocket for signaling/stats and WebRTC DataChannel for performance
+// RPSV client hook: uses WebSocket for signaling/stats and WebRTC DataChannel for performance
 export default function useJCMP() {
   const [status, setStatus] = useState('disconnected'); // disconnected | ws | rtc
   const [dcState, setDcState] = useState('closed');
@@ -183,7 +183,7 @@ export default function useJCMP() {
           pendingPerfRef.current.push(packet);
           setPendingPerf(pendingPerfRef.current.length);
         } else {
-          console.warn('JCMP: drop perf event (queue full, rtcOnly)');
+          console.warn('RPSV: drop perf event (queue full, rtcOnly)');
         }
         return;
       }

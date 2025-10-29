@@ -30,8 +30,8 @@ function Header({ status, theme, onToggleTheme, pageTitle, onToggleSidebar, comp
             Dev
           </NavLink>
         </nav>
-        <button className={"compare-toggle-btn"} onClick={onToggleCompare} title="Toggle comparison mode (TCP vs JCMP)">
-          {compareMode ? 'TCP' : 'JCMP'}
+        <button className={"compare-toggle-btn"} onClick={onToggleCompare} title="Toggle comparison mode (TCP vs RPSV)">
+          {compareMode ? 'TCP' : 'RPSV'}
         </button>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <StatusBadge status={status} compareMode={compareMode} midiAvailable={midiAvailable} />

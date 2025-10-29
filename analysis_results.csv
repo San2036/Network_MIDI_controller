@@ -1,0 +1,12 @@
+Metric,Protocol,Value
+Latency Mean,TCP,290.55
+Latency StdDev,TCP,482.15
+Latency P95,TCP,1091.00
+Inter-arrival StdDev,TCP,1082.67
+Inter-arrival Variance,TCP,1172169.82
+Inter-playback StdDev,RPSV,203.67
+Inter-playback Variance,RPSV,41479.47
+Playback Error Mean,RPSV,2.32
+Playback Error P95,RPSV,5.00
+RTC RTT Mean,RPSV,694.80
+RTC RTT P95,RPSV,1090.00

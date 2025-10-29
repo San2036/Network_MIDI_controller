@@ -12,7 +12,7 @@ export default function DevStatsPage() {
 
   return (
     <div className="section">
-      <h2>JCMP Runtime Stats</h2>
+      <h2>RPSV Runtime Stats</h2>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
         <div className="card">
           <h3>Client</h3>
@@ -21,7 +21,7 @@ export default function DevStatsPage() {
           <div>DC: {dcState}</div>
           <div>RTC only: {String(rtcOnly)}</div>
           <div>Pending perf queue: {pendingPerf}</div>
-          <div>Compare mode: {compareMode ? 'TCP (WS immediate)' : 'JCMP (RTC + buffer)'}</div>
+          <div>Compare mode: {compareMode ? 'TCP (WS immediate)' : 'RPSV (RTC + buffer)'}</div>
         </div>
         <div className="card">
           <h3>Server</h3>
