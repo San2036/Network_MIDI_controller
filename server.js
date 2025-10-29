@@ -52,6 +52,9 @@ function connectMIDI() {
 if (!connectMIDI()) {
     console.error('❌ Could not connect to any MIDI port');
     console.log('💡 Make sure loopMIDI is running and has an active port');
+    console.log('💡 Available outputs:', easymidi.getOutputs());
+} else {
+    console.log('✅ MIDI output ready. Make sure your DAW/synth is configured to receive from this port.');
 }
 
 // Serve static files
@@ -280,9 +283,9 @@ function sendNoteOn(channel, note, velocity) {
             note: note,
             velocity: velocity
         });
-        console.log(`🎹 Note ON: Ch${channel}, Note${note}, Vel${velocity}`);
+        console.log(`🎹 Note ON: Ch${channel}, Note${note}, Vel${velocity} → MIDI sent`);
     } catch (error) {
-        console.error('❌ Error sending note on:', error.message);
+        console.error('❌ Error sending note on:', error.message, error.stack);
     }
 }
 

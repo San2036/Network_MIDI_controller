@@ -15,7 +15,12 @@ function DrumPads({ onPlayDrum }) {
   return (
     <div className="drum-pads">
       {pads.map((pad, idx) => (
-        <button key={idx} className="drum-pad" onClick={() => onPlayDrum(pad.note)}>
+        <button
+          key={idx}
+          className="drum-pad"
+          onClick={() => onPlayDrum(pad.note)}
+          onTouchStart={(e) => { e.preventDefault(); onPlayDrum(pad.note); }}
+        >
           {pad.label}
         </button>
       ))}

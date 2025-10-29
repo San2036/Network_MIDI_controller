@@ -6,10 +6,12 @@ export default function useJCMP() {
   const [dcState, setDcState] = useState('closed');
   const [stats, setStats] = useState(null);
   const [midiAvailable, setMidiAvailable] = useState(false);
+  const [allowWSFallback, setAllowWSFallback] = useState(false); // Allow WS fallback after RTC timeout
 
   // Enforce WebRTC as primary lane
   const rtcOnly = true; // set to false to allow WS fallback for performance
   const pendingPerfRef = useRef([]);
+  const rtcTimeoutRef = useRef(null);
 
   const wsRef = useRef(null);
   const pcRef = useRef(null);
@@ -22,11 +24,16 @@ export default function useJCMP() {
 
   // Signaling via WebSocket
   const cleanupRTC = useCallback(() => {
+    if (rtcTimeoutRef.current) {
+      clearTimeout(rtcTimeoutRef.current);
+      rtcTimeoutRef.current = null;
+    }
     try { dcRef.current?.close(); } catch {}
     try { pcRef.current?.close(); } catch {}
     dcRef.current = null;
     pcRef.current = null;
     setDcState('closed');
+    setAllowWSFallback(false);
   }, []);
 
   const safeSend = useCallback((ws, obj) => {
@@ -49,6 +56,12 @@ export default function useJCMP() {
     dcRef.current = dc;
 
     dc.onopen = () => {
+      console.log('✅ RTC DataChannel opened');
+      if (rtcTimeoutRef.current) {
+        clearTimeout(rtcTimeoutRef.current);
+        rtcTimeoutRef.current = null;
+      }
+      setAllowWSFallback(false); // Reset fallback flag when RTC opens
       setDcState('open');
       setStatus('rtc');
       // flush any pending performance events
@@ -67,6 +80,21 @@ export default function useJCMP() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       safeSend(wsRef.current, { type: 'webrtc-offer', offer });
+      
+      // Set timeout: if RTC doesn't connect in 8 seconds, allow WS fallback for mobile
+      rtcTimeoutRef.current = setTimeout(() => {
+        if (dcRef.current?.readyState !== 'open') {
+          console.warn('⚠️ RTC connection timeout - allowing WS fallback for performance messages');
+          setAllowWSFallback(true);
+          // Clear pending queue by sending via WS
+          const pending = pendingPerfRef.current.splice(0);
+          pending.forEach(packet => {
+            safeSend(wsRef.current, packet);
+          });
+          setPendingPerf(0);
+        }
+        rtcTimeoutRef.current = null;
+      }, 8000);
     } catch {
       // fall back stays ws-only
     }
@@ -81,6 +109,7 @@ export default function useJCMP() {
       setWsState('connecting');
 
       ws.onopen = () => {
+        console.log('✅ WebSocket connected to:', wsUrl);
         setWsState('open');
         setStatus((dcRef.current && dcRef.current.readyState === 'open') ? 'rtc' : 'ws');
         // Hello + kick off WebRTC handshake
@@ -119,7 +148,8 @@ export default function useJCMP() {
         reconnectTimer = setTimeout(openWS, 2000);
       };
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('❌ WebSocket error connecting to:', wsUrl, error);
         setWsState('error');
         setStatus('disconnected');
       };
@@ -141,9 +171,13 @@ export default function useJCMP() {
     if (isPerf) {
       const packet = { ...msg, timestamp: Date.now() };
       if (dcRef.current && dcRef.current.readyState === 'open') {
-        try { dcRef.current.send(JSON.stringify(packet)); return; } catch {}
+        try { 
+          console.log('📤 Sending MIDI via RTC:', packet.type);
+          dcRef.current.send(JSON.stringify(packet)); 
+          return; 
+        } catch {}
       }
-      if (rtcOnly) {
+      if (rtcOnly && !allowWSFallback) {
         // queue until RTC opens; prevents WS fallback
         if (pendingPerfRef.current.length < 256) {
           pendingPerfRef.current.push(packet);
@@ -154,6 +188,7 @@ export default function useJCMP() {
         return;
       }
       // fallback to WS immediate if allowed
+      console.log('📤 Sending MIDI via WS fallback:', msg.type);
       safeSend(wsRef.current, msg);
       return;
     }

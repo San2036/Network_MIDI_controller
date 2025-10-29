@@ -41,6 +41,9 @@ function Piano({ pressedKeys, onPlayNote }) {
               onMouseDown={() => onPlayNote(noteNumber, true)}
               onMouseUp={() => onPlayNote(noteNumber, false)}
               onMouseLeave={() => onPlayNote(noteNumber, false)}
+              onTouchStart={(e) => { e.preventDefault(); onPlayNote(noteNumber, true); }}
+              onTouchEnd={(e) => { e.preventDefault(); onPlayNote(noteNumber, false); }}
+              onTouchCancel={(e) => { e.preventDefault(); onPlayNote(noteNumber, false); }}
             >
               {note}{startOctave + i}
             </div>
