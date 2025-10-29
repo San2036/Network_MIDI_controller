@@ -260,7 +260,8 @@ function handlePerformancePacket(c, msg) {
         logMetric({ kind: 'rpsv_rtc', rttMs: latency, bufferSizeMs: c.bufferSizeMs, clientId: c.id });
     }
 
-    const playAt = ts + c.bufferSizeMs;
+    // Use server arrival time to avoid cross-device clock skew dropping events
+    const playAt = now + c.bufferSizeMs;
     switch (obj.type) {
         case 'noteOn':
             insertEvent({ playAt, type: 'noteOn', channel: obj.channel || 1, note: obj.note, velocity: obj.velocity || 100 });
